@@ -3301,35 +3301,34 @@ if (r.name === 'settings') {
   await settingsPage();
   return;
 }
-        activateNav(r.name);
-        view.innerHTML =
-          pageHead(
-            r.name === 'hearings' ? 'الجلسات' :
-            r.name === 'procedures' ? 'الإجراءات' :
-            r.name === 'judgments' ? 'الأحكام' :
-            r.name === 'reports' ? 'التقارير' :
-            r.name === 'backup' ? 'النسخ الاحتياطي' :
-            'الإعدادات'
-          ) +
 
-          '<div class="warn-banner">' +
-            'هذه الوحدة سيتم استكمال وظائفها في المرحلة التالية.' +
-          '</div>';
-        return;
-      }
+activateNav(r.name);
+view.innerHTML =
+  pageHead(
+    r.name === 'hearings' ? 'الجلسات' :
+    r.name === 'procedures' ? 'الإجراءات' :
+    r.name === 'judgments' ? 'الأحكام' :
+    r.name === 'reports' ? 'التقارير' :
+    r.name === 'backup' ? 'النسخ الاحتياطي' :
+    'الإعدادات'
+  ) +
 
-      go('dashboard');
+  '<div class="warn-banner">' +
+    'هذه الوحدة سيتم استكمال وظائفها في المرحلة التالية.' +
+  '</div>';
 
-    } catch (err) {
-      console.error(err);
+return;
 
-      view.innerHTML =
-        '<div class="warn-banner">' +
-          '<strong>حدث خطأ أثناء تشغيل الصفحة.</strong><br>' +
-          esc(err && err.message ? err.message : err) +
-        '</div>';
-    }
-  }
+} catch (err) {
+  console.error(err);
+
+  view.innerHTML =
+    '<div class="warn-banner">' +
+      '<strong>حدث خطأ أثناء تشغيل الصفحة.</strong><br>' +
+      esc(err && err.message ? err.message : err) +
+    '</div>';
+}
+}
 
   /* =========================================================
      MOBILE NAV
