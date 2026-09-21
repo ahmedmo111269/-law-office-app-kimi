@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a3a5c">
+
+  <title>⚖️ مكتب المحاماة</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <button id="nav-toggle" class="nav-toggle" aria-label="القائمة">
+      ☰
+    </button>
+
+    <div class="brand">
+      <span class="brand-icon">⚖️</span>
+      <span id="brand-name">مكتب المحاماة</span>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <nav class="sidebar" id="sidebar">
+
+      <a class="nav-link" data-nav="dashboard" href="#/dashboard">
+        🏠 الرئيسية
+      </a>
+
+      <a class="nav-link" data-nav="clients" href="#/clients">
+        👥 العملاء
+      </a>
+
+      <a class="nav-link" data-nav="cases" href="#/cases">
+        ⚖️ القضايا
+      </a>
+
+      <a class="nav-link" data-nav="hearings" href="#/hearings">
+        📅 الجلسات
+      </a>
+
+      <a class="nav-link" data-nav="procedures" href="#/procedures">
+        📋 الإجراءات
+      </a>
+
+      <a class="nav-link" data-nav="judgments" href="#/judgments">
+        📜 الأحكام
+      </a>
+
+      <a class="nav-link" data-nav="opponents" href="#/opponents">
+        🧑‍⚖️ الخصوم
+      </a>
+
+      <a class="nav-link" data-nav="search" href="#/search">
+        🔍 بحث
+      </a>
+
+      <a class="nav-link" data-nav="reports" href="#/reports">
+        📊 التقارير
+      </a>
+
+      <a class="nav-link" data-nav="backup" href="#/backup">
+        💾 النسخ الاحتياطي
+      </a>
+
+      <a class="nav-link" data-nav="settings" href="#/settings">
+        ⚙️ الإعدادات
+      </a>
+
+    </nav>
+
+    <main class="content">
+      <div id="view"></div>
+    </main>
+
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
