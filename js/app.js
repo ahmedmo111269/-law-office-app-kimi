@@ -174,7 +174,7 @@
   async function loadLookups() {
     LK = {};
 
-    var rows = await DB.repo('lookups').all();
+    var rows = await DB.store('lookups').all();
 
     rows.forEach(function (row) {
       if (!LK[row.category]) LK[row.category] = [];
