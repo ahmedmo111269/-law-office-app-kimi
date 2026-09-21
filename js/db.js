@@ -8,7 +8,7 @@ window.LawOffice = window.LawOffice || {};
     APP_NAME: 'مكتب المحاماة',
     APP_VERSION: '1.0.0',
     DB_NAME: 'LawOfficeDB',
-    DB_VERSION: 1,
+    DB_VERSION: 4,
     BACKUP_FORMAT: 'law-office-backup',
     BACKUP_FORMAT_VERSION: 1,
     PAGE_SIZE: 50
