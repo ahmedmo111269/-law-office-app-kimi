@@ -290,3 +290,307 @@
     }).catch(errHandler);
   }
   function dItem(k, v) { return v ? '<div class="detail-item"><span class="detail-key">' + U.esc(k) + '</span><span class="detail-val">' + U.esc(v) + '</span></div>' : ''; }
+/* ================= CASES ================= */
+  function casesList(view, params) {
+    params = params || {};
+    Promise.all([R.cases.all(), R.caseClients.all(), R.clients.all()]).then(function (a) {
+      var rows = a[0], rels = a[1], clients = a[2];
+      var clientName = {};
+      clients.forEach(function (c) { clientName[c.id] = c.fullName; });
+      function firstClient(cid) {
+        var r = rels.filter(function (x) { return x.caseId === cid; })[0];
+        return r ? (clientName[r.clientId] || '') : '';
+      }
+      rows = rows.filter(function (c) { return params.arch === '1' ? !!c.archived : !c.archived; });
+      if (params.year) rows = rows.filter(function (c) { return String(c.caseYear) === params.year; });
+      if (params.court) rows = rows.filter(function (c) { return (c.court || '').indexOf(params.court) > -1; });
+      if (params.statusId) rows = rows.filter(function (c) { return c.caseStatusId === params.statusId; });
+      if (params.typeId) rows = rows.filter(function (c) { return c.caseTypeId === params.typeId; });
+      if (params.q) {
+        var n = params.q.toLowerCase();
+        rows = rows.filter(function (c) {
+          return (c.caseNumber || '').toLowerCase().indexOf(n) > -1 ||
+            (c.subject || '').toLowerCase().indexOf(n) > -1 ||
+            (firstClient(c.id) || '').toLowerCase().indexOf(n) > -1;
+        });
+      }
+      rows.sort(function (x, y) { return String(y.caseYear).localeCompare(String(x.caseYear)) || String(y.caseNumber).localeCompare(String(x.caseNumber), 'ar', { numeric: true }); });
+
+      var html = '<div class="page-head"><h1>القضايا</h1><a class="btn btn-primary" href="#/cases/new">+ إضافة قضية</a></div>' +
+        '<div class="filters">' +
+        '<input id="cs-q" placeholder="بحث برقم القضية أو الموضوع أو العميل" value="' + U.esc(params.q || '') + '">' +
+        '<input id="cs-year" placeholder="السنة" value="' + U.esc(params.year || '') + '" size="6">' +
+        '<input id="cs-court" placeholder="المحكمة" value="' + U.esc(params.court || '') + '">' +
+        '<select id="cs-type"><option value="">كل الأنواع</option>' + lkOptions('caseType', params.typeId) + '</select>' +
+        '<select id="cs-status"><option value="">كل الحالات</option>' + lkOptions('caseStatus', params.statusId) + '</select>' +
+        '<label class="chk"><input type="checkbox" id="cs-arch"' + (params.arch === '1' ? ' checked' : '') + '> مؤرشفة</label>' +
+        '</div>';
+      if (!rows.length) html += emptyState('لا توجد قضايا مطابقة', '#/cases/new', 'إضافة قضية');
+      else {
+        html += '<div class="table-wrap"><table><thead><tr><th>رقم القضية</th><th>السنة</th><th>النوع</th><th>درجة التقاضي</th><th>المحكمة</th><th>الدائرة</th><th>الحالة</th><th>العميل</th><th></th></tr></thead><tbody>' +
+          rows.map(function (c) {
+            return '<tr><td>' + U.esc(c.caseNumber) + '</td><td>' + U.esc(c.caseYear) + '</td>' +
+              '<td>' + U.esc(lkName('caseType', c.caseTypeId)) + '</td>' +
+              '<td>' + U.esc(lkName('litigationDegree', c.litigationDegreeId)) + '</td>' +
+              '<td>' + U.esc(c.court || '') + '</td><td>' + U.esc(c.circuit || '') + '</td>' +
+              '<td><span class="badge">' + U.esc(lkName('caseStatus', c.caseStatusId)) + '</span></td>' +
+              '<td>' + U.esc(firstClient(c.id)) + '</td>' +
+              '<td><a class="btn btn-sm" href="#/cases/' + c.id + '">فتح</a></td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }
+      view.innerHTML = html;
+      function ref() {
+        var p = {};
+        ['q', 'year', 'court'].forEach(function (k) { var v = U.val('cs-' + k); if (v) p[k] = v; });
+        if (U.val('cs-type')) p.typeId = U.val('cs-type');
+        if (U.val('cs-status')) p.statusId = U.val('cs-status');
+        if (document.getElementById('cs-arch').checked) p.arch = '1';
+        render('cases', p);
+      }
+      ['cs-q', 'cs-year', 'cs-court'].forEach(function (i) { document.getElementById(i).addEventListener('input', U.debounce(ref, 300)); });
+      ['cs-type', 'cs-status', 'cs-arch'].forEach(function (i) { document.getElementById(i).addEventListener('change', ref); });
+    }).catch(errHandler);
+  }
+
+  function caseForm(view, params, id) {
+    var isEdit = !!id, data = {}, selClients = {}, selOpps = {};
+    function draw(clients, opponents) {
+      var clientBoxes = clients.map(function (c) {
+        var r = selClients[c.id];
+        return '<label class="chk"><input type="checkbox" class="cs-client" value="' + c.id + '"' + (r ? ' checked' : '') + '> ' + U.esc(c.fullName) + '</label>' +
+          (r ? ' <select class="role-sel" data-for="' + c.id + '"><option value="">الصفة...</option>' + lkOptions('clientRole', r.role) + '</select>' : '');
+      }).join('') || '<p class="muted">لا يوجد عملاء — أضف عميلاً أولاً</p>';
+      var oppBoxes = opponents.map(function (o) {
+        var r = selOpps[o.id];
+        return '<label class="chk"><input type="checkbox" class="cs-opp" value="' + o.id + '"' + (r ? ' checked' : '') + '> ' + U.esc(o.fullName) + '</label>' +
+          (r ? ' <select class="role-sel" data-opp="' + o.id + '"><option value="">الصفة...</option>' + lkOptions('opponentRole', r.role) + '</select>' : '');
+      }).join('') || '<p class="muted">لا يوجد خصوم مسجلون</p>';
+
+      view.innerHTML = '<div class="page-head"><h1>' + (isEdit ? 'تعديل قضية' : 'إضافة قضية') + '</h1></div>' +
+        '<form id="f-case" class="form-panel">' +
+        '<div class="form-row">' + field('رقم القضية *', inp('caseNumber', data.caseNumber)) + field('لسنة *', inp('caseYear', data.caseYear, 'number')) + '</div>' +
+        '<div class="form-row">' + field('نوع القضية', '<select id="caseTypeId">' + lkOptions('caseType', data.caseTypeId) + '</select>') +
+        field('درجة التقاضي', '<select id="litigationDegreeId">' + lkOptions('litigationDegree', data.litigationDegreeId) + '</select>') + '</div>' +
+        '<div class="form-row">' + field('المحكمة', inp('court', data.court)) + field('الدائرة', inp('circuit', data.circuit)) + '</div>' +
+        field('الموضوع', '<textarea id="subject">' + U.esc(data.subject || '') + '</textarea>') +
+        '<div class="form-row">' + field('حالة القضية', '<select id="caseStatusId">' + lkOptions('caseStatus', data.caseStatusId) + '</select>') +
+        field('تاريخ القيد', inp('filingDate', data.filingDate, 'date')) + '</div>' +
+        '<section class="panel"><h2>العملاء</h2><div class="checks">' + clientBoxes + '</div>' +
+        '<a class="btn btn-sm" href="#/clients/new?ret=case">+ عميل جديد</a></section>' +
+        '<section class="panel"><h2>الخصوم</h2><div class="checks">' + oppBoxes + '</div>' +
+        '<a class="btn btn-sm" href="#/opponents/new?ret=case">+ خصم جديد</a></section>' +
+        field('ملاحظات', '<textarea id="notes">' + U.esc(data.notes || '') + '</textarea>') +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit">حفظ</button>' +
+        '<a class="btn btn-ghost" href="#/cases">إلغاء</a></div></form>';
+
+      U.$$('.cs-client').forEach(function (cb) { cb.addEventListener('change', function () { selClients[cb.value] = cb.checked ? (selClients[cb.value] || {}) : null; draw(clients, opponents); }); });
+      U.$$('.cs-opp').forEach(function (cb) { cb.addEventListener('change', function () { selOpps[cb.value] = cb.checked ? (selOpps[cb.value] || {}) : null; draw(clients, opponents); }); });
+      U.$$('.role-sel[data-for]').forEach(function (s) { s.addEventListener('change', function () { selClients[s.getAttribute('data-for')].role = s.value; }); });
+      U.$$('.role-sel[data-opp]').forEach(function (s) { s.addEventListener('change', function () { selOpps[s.getAttribute('data-opp')].role = s.value; }); });
+
+      document.getElementById('f-case').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var f = {
+          caseNumber: U.val('caseNumber'), caseYear: U.num('caseYear'),
+          caseTypeId: U.val('caseTypeId'), litigationDegreeId: U.val('litigationDegreeId'),
+          court: U.val('court'), circuit: U.val('circuit'), subject: U.val('subject'),
+          caseStatusId: U.val('caseStatusId'), filingDate: U.val('filingDate'),
+          notes: U.val('notes'), archived: data.archived || false
+        };
+        if (!f.caseNumber || !f.caseYear) { toast('رقم القضية والسنة مطلوبان', 'error'); return; }
+        var caseId = isEdit ? id : U.uid();
+        var cObj = Object.assign({}, data, f, { id: caseId });
+        var rels = [];
+        Object.keys(selClients).forEach(function (cid) { if (selClients[cid]) rels.push({ t: 'caseClients', caseId: caseId, clientId: cid, role: selClients[cid].role || '' }); });
+        Object.keys(selOpps).forEach(function (oid) { if (selOpps[oid]) rels.push({ t: 'caseOpponents', caseId: caseId, opponentId: oid, role: selOpps[oid].role || '' }); });
+
+        /* single transaction: case + replace relations */
+        L.DB.open().then(function (db) {
+          return new Promise(function (res, rej) {
+            var t = db.transaction(['cases', 'caseClients', 'caseOpponents'], 'readwrite');
+            t.objectStore('cases').put(cObj);
+            ['caseClients', 'caseOpponents'].forEach(function (s) {
+              var st = t.objectStore(s);
+              reqp(st.index('caseId').getAllKeys ? st.index('caseId').getAll(caseId) : null).then(function (old) {
+                (old || []).forEach(function (o) { st.delete(o.id); });
+                rels.filter(function (r) { return r.t === s; }).forEach(function (r) {
+                  st.add({ id: U.uid(), caseId: r.caseId, clientId: r.clientId, opponentId: r.opponentId, role: r.role, notes: '', createdAt: U.nowISO(), updatedAt: U.nowISO() });
+                });
+              });
+            });
+            t.oncomplete = res; t.onerror = function () { rej(t.error); }; t.onabort = function () { rej(t.error); };
+          });
+        }).then(function () { toast('تم حفظ القضية بنجاح'); location.hash = '#/cases/' + caseId; })
+          .catch(function (e2) { errHandler(e2); });
+      });
+    }
+    Promise.all([R.clients.all(), R.opponents.all()]).then(function (a) {
+      var clients = a[0].filter(function (c) { return !c.archived; });
+      var opponents = a[1].filter(function (o) { return !o.archived; });
+      function go() {
+        if (isEdit) {
+          Promise.all([R.cases.get(id),
+            R.caseClients.byIndex('caseId', id),
+            R.caseOpponents.byIndex('caseId', id)]).then(function (x) {
+            if (!x[0]) { view.innerHTML = emptyState('القضية غير موجودة'); return; }
+            data = x[0];
+            x[1].forEach(function (r) { selClients[r.clientId] = { role: r.role }; });
+            x[2].forEach(function (r) { selOpps[r.opponentId] = { role: r.role }; });
+            draw(clients, opponents);
+          }).catch(errHandler);
+        } else {
+          if (params && params.clientId) selClients[params.clientId] = {};
+          draw(clients, opponents);
+        }
+      }
+      go();
+    }).catch(errHandler);
+  }
+
+  function caseRecord(view, params, id, tab) {
+    tab = tab || 'info';
+    Promise.all([R.cases.get(id), caseClients(id), caseOpponents(id)]).then(function (a) {
+      var cs = a[0], cls = a[1], ops = a[2];
+      if (!cs) { view.innerHTML = emptyState('القضية غير موجودة'); return; }
+      var tabs = [['info', 'بيانات القضية'], ['clients', 'العملاء (' + cls.length + ')'], ['opponents', 'الخصوم (' + ops.length + ')'],
+        ['hearings', 'الجلسات'], ['procedures', 'الإجراءات'], ['judgments', 'الأحكام'], ['events', 'أحداث'], ['timeline', 'السجل الزمني'], ['notes', 'الملاحظات']];
+      var html = '<div class="page-head"><h1>' + U.esc(caseTitle(cs)) + '</h1><div>' +
+        '<a class="btn" href="#/cases/' + cs.id + '/edit">تعديل</a> ' +
+        (cs.archived
+          ? '<button class="btn" id="cs-restore">استعادة</button>'
+          : '<button class="btn btn-danger" id="cs-arch">أرشفة</button>') + '</div></div>' +
+        '<div class="breadcrumbs"><a href="#/cases">القضايا</a> / ' + U.esc(caseTitle(cs)) + '</div>' +
+        '<div class="tabs">' + tabs.map(function (t2) {
+          return '<a class="tab' + (t2[0] === tab ? ' active' : '') + '" href="#/cases/' + cs.id + '/' + t2[0] + '">' + t2[1] + '</a>';
+        }).join('') + '</div><div id="tab-body"></div>';
+      view.innerHTML = html;
+      var body = document.getElementById('tab-body');
+      var archBtn = document.getElementById('cs-arch'), restBtn = document.getElementById('cs-restore');
+      if (archBtn) archBtn.addEventListener('click', function () {
+        modal({ message: 'أرشفة القضية؟ ستختفي من القوائم النشطة ويبقى أرشيفها.', okText: 'أرشفة' }).then(function (ok) {
+          if (!ok) return; cs.archived = true; R.cases.put(cs).then(function () { toast('تمت الأرشفة'); caseRecord(view, params, id, tab); }).catch(errHandler);
+        });
+      });
+      if (restBtn) restBtn.addEventListener('click', function () {
+        cs.archived = false; R.cases.put(cs).then(function () { toast('تمت الاستعادة'); caseRecord(view, params, id, tab); }).catch(errHandler);
+      });
+
+      if (tab === 'info') {
+        body.innerHTML = '<section class="panel"><div class="detail-grid">' +
+          dItem('رقم القضية', cs.caseNumber) + dItem('السنة', cs.caseYear) +
+          dItem('نوع القضية', lkName('caseType', cs.caseTypeId)) +
+          dItem('درجة التقاضي', lkName('litigationDegree', cs.litigationDegreeId)) +
+          dItem('المحكمة', cs.court) + dItem('الدائرة', cs.circuit) +
+          dItem('الحالة', lkName('caseStatus', cs.caseStatusId)) + dItem('تاريخ القيد', U.fmtDate(cs.filingDate)) +
+          dItem('الموضوع', cs.subject) + dItem('ملاحظات', cs.notes) + '</div></section>';
+      } else if (tab === 'clients') {
+        body.innerHTML = '<section class="panel">' +
+          (cls.length ? '<ul class="item-list">' + cls.map(function (x) {
+            return '<li><a href="#/clients/' + x.client.id + '">' + U.esc(x.client.fullName) + '</a> <span class="badge">' + U.esc(lkName('clientRole', x.rel.role) || 'موكل') + '</span> ' +
+              '<button class="btn btn-sm btn-danger" data-delrel="' + x.rel.id + '">إزالة الرابط</button></li>';
+          }).join('') + '</ul>' : emptyState('لا يوجد عملاء مرتبطون')) +
+          '<a class="btn btn-sm" href="#/cases/' + cs.id + '/edit">إدارة العملاء</a></section>';
+      } else if (tab === 'opponents') {
+        body.innerHTML = '<section class="panel">' +
+          (ops.length ? '<ul class="item-list">' + ops.map(function (x) {
+            return '<li><a href="#/opponents/' + x.opponent.id + '">' + U.esc(x.opponent.fullName) + '</a> <span class="badge">' + U.esc(lkName('opponentRole', x.rel.role) || '') + '</span>' +
+              (x.opponent.lawyerName ? ' <span class="muted">محاميه: ' + U.esc(x.opponent.lawyerName) + '</span>' : '') + ' ' +
+              '<button class="btn btn-sm btn-danger" data-delopp="' + x.rel.id + '">إزالة الرابط</button></li>';
+          }).join('') + '</ul>' : emptyState('لا يوجد خصوم')) +
+          '<a class="btn btn-sm" href="#/cases/' + cs.id + '/edit">إدارة الخصوم</a></section>';
+      } else if (tab === 'hearings') {
+        R.hearings.byIndex('caseId', id).then(function (rows) {
+          rows.sort(function (x, y) { return (x.date || '').localeCompare(y.date || '') || (x.time || '').localeCompare(y.time || ''); });
+          body.innerHTML = '<section class="panel"><a class="btn btn-sm btn-primary" href="#/hearings/new?caseId=' + id + '">+ جلسة جديدة</a><br><br>' +
+            (rows.length ? '<ul class="item-list">' + rows.map(function (h) {
+              return '<li><strong>' + U.fmtDate(h.date) + ' ' + U.esc(h.time || '') + '</strong> — ' + U.esc(h.court || '') +
+                ' <span class="badge">' + U.esc(lkName('hearingStatus', h.statusId) || '') + '</span>' +
+                (h.decision ? '<br><span class="muted">قرار الجلسة: ' + U.esc(h.decision) + '</span>' : '') +
+                ' <a class="btn btn-sm" href="#/hearings/' + h.id + '/edit">تعديل</a></li>';
+            }).join('') + '</ul>' : emptyState('لا توجد جلسات')) + '</section>';
+        }).catch(errHandler);
+      } else if (tab === 'procedures') {
+        R.procedures.byIndex('caseId', id).then(function (rows) {
+          rows.sort(function (x, y) { return (x.deadline || x.date || '').localeCompare(y.deadline || y.date || ''); });
+          body.innerHTML = '<section class="panel"><a class="btn btn-sm btn-primary" href="#/procedures/new?caseId=' + id + '">+ إجراء جديد</a><br><br>' +
+            (rows.length ? '<ul class="item-list">' + rows.map(function (p) {
+              return '<li><strong>' + U.esc(p.description || lkName('procedureType', p.typeId)) + '</strong> ' +
+                '<span class="badge">' + U.esc(lkName('procedureStatus', p.statusId) || '') + '</span>' +
+                (p.deadline ? ' <span class="muted">الموعد النهائي: ' + U.fmtDate(p.deadline) + '</span>' : '') +
+                ' <a class="btn btn-sm" href="#/procedures/' + p.id + '/edit">تعديل</a></li>';
+            }).join('') + '</ul>' : emptyState('لا توجد إجراءات')) + '</section>';
+        }).catch(errHandler);
+      } else if (tab === 'judgments') {
+        R.judgments.byIndex('caseId', id).then(function (rows) {
+          rows.sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); });
+          body.innerHTML = '<section class="panel"><a class="btn btn-sm btn-primary" href="#/judgments/new?caseId=' + id + '">+ حكم جديد</a><br><br>' +
+            (rows.length ? '<ul class="item-list">' + rows.map(function (j) {
+              return '<li><strong>' + U.fmtDate(j.date) + '</strong> — ' + U.esc(lkName('judgmentType', j.judgmentTypeId)) +
+                ' <span class="badge">' + U.esc(lkName('judgmentStatus', j.statusId) || '') + '</span>' +
+                (j.operativePart ? '<br><span class="muted">منطوق الحكم: ' + U.esc(j.operativePart) + '</span>' : '') +
+                ' <a class="btn btn-sm" href="#/judgments/' + j.id + '/edit">تعديل</a></li>';
+            }).join('') + '</ul>' : emptyState('لا توجد أحكام')) + '</section>';
+        }).catch(errHandler);
+      } else if (tab === 'events') {
+        R.caseEvents.byIndex('caseId', id).then(function (rows) {
+          rows.sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); });
+          body.innerHTML = '<section class="panel"><a class="btn btn-sm btn-primary" href="#/events/new?caseId=' + id + '">+ حدث جديد</a><br><br>' +
+            (rows.length ? '<ul class="item-list">' + rows.map(function (ev) {
+              return '<li><strong>' + U.fmtDate(ev.date) + '</strong> — ' + U.esc(ev.title) +
+                ' <span class="badge">' + U.esc(lkName('eventType', ev.typeId) || '') + '</span>' +
+                (ev.description ? '<br><span class="muted">' + U.esc(ev.description) + '</span>' : '') +
+                ' <button class="btn btn-sm btn-danger" data-delev="' + ev.id + '">حذف</button></li>';
+            }).join('') + '</ul>' : emptyState('لا توجد أحداث')) + '</section>';
+          U.$$('[data-delev]').forEach(function (b) { b.addEventListener('click', function () {
+            modal({ message: 'حذف هذا الحدث نهائياً؟', okText: 'حذف', danger: true }).then(function (ok) {
+              if (!ok) return; R.caseEvents.del(b.getAttribute('data-delev')).then(function () { toast('تم الحذف'); caseRecord(view, params, id, tab); }).catch(errHandler);
+            });
+          }); });
+        }).catch(errHandler);
+      } else if (tab === 'timeline') {
+        buildTimeline(id, body);
+      } else if (tab === 'notes') {
+        body.innerHTML = '<section class="panel"><form id="f-notes">' +
+          '<textarea id="cs-notes" rows="6">' + U.esc(cs.notes || '') + '</textarea>' +
+          '<br><br><button class="btn btn-primary">حفظ الملاحظات</button></form></section>';
+        document.getElementById('f-notes').addEventListener('submit', function (e) {
+          e.preventDefault(); cs.notes = U.val('cs-notes');
+          R.cases.put(cs).then(function () { toast('تم الحفظ'); }).catch(errHandler);
+        });
+      }
+
+      U.$$('[data-delrel]').forEach(function (b) { b.addEventListener('click', function () {
+        modal({ message: 'إزالة رابط العميل بهذه القضية؟ لن يتم حذف العميل.', okText: 'إزالة', danger: true }).then(function (ok) {
+          if (!ok) return; R.caseClients.del(b.getAttribute('data-delrel')).then(function () { toast('تمت الإزالة'); caseRecord(view, params, id, tab); }).catch(errHandler);
+        });
+      }); });
+      U.$$('[data-delopp]').forEach(function (b) { b.addEventListener('click', function () {
+        modal({ message: 'إزالة رابط الخصم بهذه القضية؟ لن يتم حذف الخصم.', okText: 'إزالة', danger: true }).then(function (ok) {
+          if (!ok) return; R.caseOpponents.del(b.getAttribute('data-delopp')).then(function () { toast('تمت الإزالة'); caseRecord(view, params, id, tab); }).catch(errHandler);
+        });
+      }); });
+    }).catch(errHandler);
+  }
+
+  function buildTimeline(caseId, body) {
+    Promise.all([
+      R.hearings.byIndex('caseId', caseId),
+      R.procedures.byIndex('caseId', caseId),
+      R.judgments.byIndex('caseId', caseId),
+      R.caseEvents.byIndex('caseId', caseId),
+      R.cases.get(caseId)
+    ]).then(function (a) {
+      var items = [];
+      a[0].forEach(function (h) { items.push({ date: h.date, icon: '📅', title: 'جلسة', desc: (h.time ? h.time + ' — ' : '') + (h.court || '') + (h.decision ? ' | قرار: ' + h.decision : ''), id: h.id }); });
+      a[1].forEach(function (p) { items.push({ date: p.date, icon: '📋', title: 'إجراء', desc: p.description || lkName('procedureType', p.typeId), id: p.id }); });
+      a[2].forEach(function (j) { items.push({ date: j.date, icon: '⚖️', title: lkName('judgmentType', j.judgmentTypeId) || 'حكم', desc: j.operativePart || j.summary || '', id: j.id }); });
+      a[3].forEach(function (ev) { items.push({ date: ev.date, icon: '📌', title: ev.title, desc: lkName('eventType', ev.typeId) || '', id: ev.id }); });
+      if (a[4] && a[4].filingDate) items.push({ date: a[4].filingDate, icon: '⚖️', title: 'قيد الدعوى', desc: a[4].subject || '', id: 'filing' });
+      items.sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); });
+      body.innerHTML = '<section class="panel">' + (items.length
+        ? '<div class="timeline">' + items.map(function (it) {
+            return '<div class="tl-item"><div class="tl-date">' + U.fmtDate(it.date) + '</div><div class="tl-body"><strong>' + it.icon + ' ' + U.esc(it.title) + '</strong><p>' + U.esc(it.desc) + '</p></div></div>';
+          }).join('') + '</div>'
+        : emptyState('لا توجد أحداث بعد')) + '</section>';
+    }).catch(errHandler);
+  }
