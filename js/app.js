@@ -2752,28 +2752,7 @@ async function restoreBackup(file) {
       return;
     }
 
-    const stores = [
-      'clients',
-      'cases',
-      'caseClients',
-      'opponents',
-      'caseOpponents',
-      'hearings',
-      'procedures',
-      'judgments',
-      'caseEvents',
-      'lookups',
-      'settings'
-    ];
-
-    for (const storeName of stores) {
-      if (Array.isArray(backup.data[storeName])) {
-        await DB.replaceAll(
-          storeName,
-          backup.data[storeName]
-        );
-      }
-    }
+    await DB.replaceAll(backup.data);
 
     await DB.repo('backupHistory').add({
       id: uid(),
